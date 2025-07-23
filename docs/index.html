@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Splunk Downloads</title>
+<style>
+ body {font-family: Arial, sans-serif; margin: 20px;}
+ label {display: block; margin-top: 10px;}
+ table {border-collapse: collapse; width: 100%; margin-top: 20px;}
+ th, td {border: 1px solid #ccc; padding: 8px; text-align: left;}
+</style>
+</head>
+<body>
+<h1>Splunk Downloads</h1>
+
+<label>
+  Search Version:
+  <input type="text" id="search" placeholder="e.g. 9.1.1">
+</label>
+
+<label>
+  Product:
+  <select id="product">
+    <option value="splunk">Splunk Enterprise</option>
+    <option value="universalforwarder">Universal Forwarder</option>
+  </select>
+</label>
+
+<label>
+  Operating System:
+  <select id="os">
+    <option value="linux">Linux</option>
+    <option value="windows">Windows</option>
+    <option value="osx">Mac</option>
+  </select>
+</label>
+
+<label>
+  Package Type:
+  <select id="pkg">
+    <option value="tgz">TGZ</option>
+    <option value="deb">DEB</option>
+    <option value="rpm">RPM</option>
+    <option value="msi">MSI</option>
+    <option value="zip">ZIP</option>
+    <option value="dmg">DMG</option>
+  </select>
+</label>
+
+<button id="searchBtn">Search</button>
+
+<table id="results">
+<thead>
+  <tr><th>Version</th><th>Download</th></tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<script src="script.js"></script>
+</body>
+</html>
