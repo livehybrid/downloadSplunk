@@ -1,5 +1,46 @@
 #!/bin/bash
 
+# Function to determine file naming pattern based on version
+get_file_pattern() {
+    local version=$1
+    local build=$2
+    
+    # Extract major and minor version numbers
+    local major=$(echo $version | cut -d. -f1)
+    local minor=$(echo $version | cut -d. -f2)
+    local patch=$(echo $version | cut -d. -f3)
+    
+    # Determine naming pattern based on version
+    if [ "$major" -ge "10" ] || ([ "$major" -eq "9" ] && [ "$minor" -ge "4" ]); then
+        # 10+ and 9.4+ uses linux-amd64 pattern
+        echo "linux-amd64"
+    elif [ "$major" -eq "9" ] && [ "$minor" -eq "3" ] && [ "$patch" -eq "2" ]; then
+        # 9.3.2 uses linux-2.6-amd64 pattern for .deb files
+        echo "linux-2.6-amd64"
+    elif [ "$major" -eq "9" ] && [ "$minor" -ge "3" ]; then
+        # 9.3+ uses linux-amd64 pattern
+        echo "linux-amd64"
+    else
+        # Default pattern for older versions
+        echo "Linux-x86_64"
+    fi
+}
+
+# Function to determine if version supports .deb packages
+supports_deb() {
+    local version=$1
+    local major=$(echo $version | cut -d. -f1)
+    local minor=$(echo $version | cut -d. -f2)
+    local patch=$(echo $version | cut -d. -f3)
+    
+    # 9.3.2 and newer support .deb packages
+    if [ "$major" -eq "9" ] && [ "$minor" -ge "3" ]; then
+        echo "true"
+    else
+        echo "false"
+    fi
+}
+
 version_list=$(curl -s https://raw.githubusercontent.com/ryanadler/downloadSplunk/main/version.list | grep -v version | grep -v missing | grep -vE "^#")
 wget -O splunkDownload.html 'https://www.splunk.com/en_us/download/splunk-enterprise.html' -q
 version=$(cat splunkDownload.html | grep -oE "data-link\=\"https://.*data-md5" | head -1 | grep -oE "splunk-.*\"" | sed "s/splunk-//g" | sed "s/-.*//g")
@@ -23,6 +64,10 @@ if [ -z "$grabLatest" ]; then
 fi
 
 if [ $grabLatest = "y" ]; then
+        # Get file naming pattern for this version
+        file_pattern=$(get_file_pattern $version $build)
+        supports_deb_pkg=$(supports_deb $version)
+        
         echo
         echo "Displaying WGET Statements for Splunk:
         Version: $version
@@ -32,13 +77,15 @@ if [ $grabLatest = "y" ]; then
         echo "-------- Linux --------"
         echo
 	echo "-- Tarball (TGZ)"
-        echo "wget -O splunk-$version-$build-Linux-x86_64.tgz 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build-Linux-x86_64.tgz'"
-        echo "wget -O splunkforwarder-$version-$build-Linux-x86_64.tgz 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build-Linux-x86_64.tgz'"
+        echo "wget -O splunk-$version-$build-$file_pattern.tgz 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build-$file_pattern.tgz'"
+        echo "wget -O splunkforwarder-$version-$build-$file_pattern.tgz 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build-$file_pattern.tgz'"
 	echo 
-	echo "-- Debian (DEB)"
-	echo "wget -O splunk-$version-$build-linux-2.6-amd64.deb 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build-linux-2.6-amd64.deb'"
-	echo "wget -O splunkforwarder-$version-$build-linux-2.6-amd64.deb 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build-linux-2.6-amd64.deb'"
-	echo
+	if [ "$supports_deb_pkg" = "true" ]; then
+		echo "-- Debian (DEB)"
+		echo "wget -O splunk-$version-$build-$file_pattern.deb 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build-$file_pattern.deb'"
+		echo "wget -O splunkforwarder-$version-$build-$file_pattern.deb 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build-$file_pattern.deb'"
+		echo
+	fi
 	echo "-- RHEL (RPM)"
         echo "wget -O splunk-$version-$build.x86_64.rpm 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build.x86_64.rpm'"
         echo "wget -O splunkforwarder-$version-$build.x86_64.rpm 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build.x86_64.rpm'"
@@ -95,6 +142,10 @@ elif [ $grabLatest = "n" ]; then
 	version=$(echo $choice | sed 's/,.*//g')
 	build=$(echo $choice | sed 's/.*,//g')
 	
+	# Get file naming pattern for this version
+	file_pattern=$(get_file_pattern $version $build)
+	supports_deb_pkg=$(supports_deb $version)
+	
 	echo
 	echo "Displaying WGET Statements for Splunk:
 	Version: $version
@@ -104,13 +155,15 @@ elif [ $grabLatest = "n" ]; then
 	echo "-------- Linux --------"
 	echo
 	echo "-- Tarball (TGZ)"
-	echo "wget -O splunk-$version-$build-Linux-x86_64.tgz 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build-Linux-x86_64.tgz'"
-	echo "wget -O splunkforwarder-$version-$build-Linux-x86_64.tgz 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build-Linux-x86_64.tgz'"
+	echo "wget -O splunk-$version-$build-$file_pattern.tgz 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build-$file_pattern.tgz'"
+	echo "wget -O splunkforwarder-$version-$build-$file_pattern.tgz 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build-$file_pattern.tgz'"
 	echo
-	echo "-- Debian (DEB)"
-	echo "wget -O splunk-$version-$build-linux-2.6-amd64.deb 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build-linux-2.6-amd64.deb'"
-	echo "wget -O splunkforwarder-$version-$build-linux-2.6-amd64.deb 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build-linux-2.6-amd64.deb'"
-	echo
+	if [ "$supports_deb_pkg" = "true" ]; then
+		echo "-- Debian (DEB)"
+		echo "wget -O splunk-$version-$build-$file_pattern.deb 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build-$file_pattern.deb'"
+		echo "wget -O splunkforwarder-$version-$build-$file_pattern.deb 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build-$file_pattern.deb'"
+		echo
+	fi
 	echo "-- RHEL (RPM)"
 	echo "wget -O splunk-$version-$build.x86_64.rpm 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build.x86_64.rpm'"
 	echo "wget -O splunkforwarder-$version-$build.x86_64.rpm 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build.x86_64.rpm'"
