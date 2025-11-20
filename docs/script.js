@@ -112,6 +112,8 @@ async function search() {
       if (!url) return;
       
       const wgetCmd = `wget -O ${url.split('/').pop()} "${url}"`;
+      // Escape single quotes and backslashes for use in onclick attribute
+      const escapedWgetCmd = wgetCmd.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -128,7 +130,7 @@ async function search() {
           </button>
         </td>
         <td>
-          <button class="btn-copy" onclick="copyToClipboard(\`${wgetCmd.replace(/`/g, '\\`')}\`)" title="Copy wget command">
+          <button class="btn-copy" onclick="copyToClipboard('${escapedWgetCmd}')" title="Copy wget command">
             wget
           </button>
         </td>
@@ -151,5 +153,16 @@ document.getElementById('search').addEventListener('keypress', (e) => {
   if (e.key === 'Enter') search();
 });
 
-// Load results on page load
-window.addEventListener('load', search);
+// Check for URL query parameters on load
+window.addEventListener('load', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const versionParam = urlParams.get('version');
+  
+  if (versionParam) {
+    // Set the search field to the version from the URL
+    document.getElementById('search').value = versionParam;
+  }
+  
+  // Always run search on page load
+  search();
+});
