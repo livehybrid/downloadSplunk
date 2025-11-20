@@ -2,59 +2,445 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Splunk Downloads</title>
 <style>
- body {font-family: Arial, sans-serif; margin: 20px;}
- label {display: block; margin-top: 10px;}
- table {border-collapse: collapse; width: 100%; margin-top: 20px;}
- th, td {border: 1px solid #ccc; padding: 8px; text-align: left;}
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  text-align: center;
+  color: white;
+  margin-bottom: 40px;
+}
+
+.header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+}
+
+.header p {
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+.card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  padding: 30px;
+  margin-bottom: 20px;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select {
+  padding: 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 14px 32px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  margin-top: 20px;
+  width: 100%;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-copy {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-copy:hover {
+  background: #5568d3;
+  transform: scale(1.05);
+}
+
+#loading {
+  text-align: center;
+  padding: 20px;
+  color: #667eea;
+  font-weight: 600;
+  display: none;
+}
+
+#error {
+  background: #fee;
+  color: #c33;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  display: none;
+  border-left: 4px solid #c33;
+}
+
+.table-container {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+th {
+  padding: 15px;
+  text-align: left;
+  font-weight: 600;
+}
+
+td {
+  padding: 15px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+tbody tr:hover {
+  background: #f9f9ff;
+}
+
+.url-cell {
+  max-width: 400px;
+  word-break: break-all;
+}
+
+.download-link {
+  color: #667eea;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.download-link:hover {
+  text-decoration: underline;
+}
+
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #333;
+  color: white;
+  padding: 15px 25px;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.3s;
+  z-index: 1000;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast-success {
+  background: #4caf50;
+}
+
+.toast-error {
+  background: #f44336;
+}
+
+@media (max-width: 768px) {
+  .header h1 {
+    font-size: 1.8rem;
+  }
+  
+  .filters {
+    grid-template-columns: 1fr;
+  }
+  
+  .card {
+    padding: 20px;
+  }
+  
+  table {
+    font-size: 0.85rem;
+  }
+  
+  th, td {
+    padding: 10px;
+  }
+  
+  .url-cell {
+    max-width: 200px;
+  }
+}
+
+.loading-spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #667eea;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.info-badge {
+  display: inline-block;
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  margin-left: 8px;
+}
+
+.footer {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  padding: 30px;
+  margin-top: 30px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  border-top: 3px solid #667eea;
+}
+
+.footer h3 {
+  color: #333;
+  margin-bottom: 15px;
+  font-size: 1.2rem;
+}
+
+.footer p {
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.footer a {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.footer a:hover {
+  text-decoration: underline;
+}
+
+.footer .disclaimer {
+  background: #fff8e1;
+  border-left: 4px solid #ffc107;
+  padding: 15px;
+  margin: 15px 0;
+  border-radius: 4px;
+}
+
+.footer .warning {
+  background: #ffebee;
+  border-left: 4px solid #f44336;
+  padding: 15px;
+  margin: 15px 0;
+  border-radius: 4px;
+}
+
+.footer small {
+  color: #888;
+  font-size: 0.85rem;
+}
 </style>
 </head>
 <body>
-<h1>Splunk Downloads</h1>
 
-<label>
-  Search Version:
-  <input type="text" id="search" placeholder="e.g. 9.1.1">
-</label>
+<div class="container">
+  <div class="header">
+    <h1>🔍 Splunk Downloads</h1>
+    <p>Search and download Splunk packages with ease</p>
+  </div>
 
-<label>
-  Product:
-  <select id="product">
-    <option value="splunk">Splunk Enterprise</option>
-    <option value="universalforwarder">Universal Forwarder</option>
-  </select>
-</label>
+  <div class="card">
+    <div class="filters">
+      <div class="form-group">
+        <label for="search">Search Version</label>
+        <input type="text" id="search" placeholder="e.g. 9.1.0">
+      </div>
 
-<label>
-  Operating System:
-  <select id="os">
-    <option value="linux">Linux</option>
-    <option value="windows">Windows</option>
-    <option value="osx">Mac</option>
-  </select>
-</label>
+      <div class="form-group">
+        <label for="product">Product</label>
+        <select id="product">
+          <option value="universalforwarder">Universal Forwarder</option>
+          <option value="splunk">Splunk Enterprise</option>
+        </select>
+      </div>
 
-<label>
-  Package Type:
-  <select id="pkg">
-    <option value="tgz">TGZ</option>
-    <option value="deb">DEB</option>
-    <option value="rpm">RPM</option>
-    <option value="msi">MSI</option>
-    <option value="zip">ZIP</option>
-    <option value="dmg">DMG</option>
-  </select>
-</label>
+      <div class="form-group">
+        <label for="os">Operating System</label>
+        <select id="os">
+          <option value="linux">Linux</option>
+          <option value="windows">Windows</option>
+          <option value="osx">macOS</option>
+        </select>
+      </div>
 
-<button id="searchBtn">Search</button>
+      <div class="form-group">
+        <label for="pkg">Package Type</label>
+        <select id="pkg">
+          <option value="tgz">TGZ (Tarball)</option>
+          <option value="deb">DEB (Debian)</option>
+          <option value="rpm">RPM (RedHat)</option>
+          <option value="msi">MSI (Windows)</option>
+          <option value="zip">ZIP (Windows)</option>
+          <option value="dmg">DMG (macOS)</option>
+        </select>
+      </div>
+    </div>
 
-<table id="results">
-<thead>
-  <tr><th>Version</th><th>Download</th></tr>
-</thead>
-<tbody></tbody>
-</table>
+    <button id="searchBtn" class="btn-primary">🔍 Search & Generate Links</button>
+
+    <div id="loading">
+      <div class="loading-spinner"></div>
+      <p style="margin-top: 10px;">Loading versions...</p>
+    </div>
+
+    <div id="error"></div>
+  </div>
+
+  <div class="card">
+    <div class="table-container">
+      <table id="results">
+        <thead>
+          <tr>
+            <th>Version</th>
+            <th>Download URL</th>
+            <th>Copy URL</th>
+            <th>Copy wget</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td colspan="4" style="text-align: center; color: #999; padding: 40px;">
+              Click "Search & Generate Links" to view available downloads
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); text-align: center;">
+    <p style="color: #555; margin-bottom: 10px;">
+      💡 <strong>Tip:</strong> Leave the search field empty to see all available versions
+    </p>
+    <p style="color: #666; font-size: 0.9rem;">
+      URL patterns automatically adjust based on version (9.4.0+ uses different naming)
+    </p>
+  </div>
+
+  <footer class="footer">
+    <h3>⚠️ Important Disclaimers</h3>
+    
+    <div class="disclaimer">
+      <p><strong>Not Affiliated with Splunk Inc.</strong></p>
+      <p>This tool is an independent, community-created resource and is <strong>not affiliated with, endorsed by, or supported by Splunk Inc.</strong> This is provided as-is for informational and convenience purposes only.</p>
+    </div>
+
+    <div class="warning">
+      <p><strong>Version Support & Availability</strong></p>
+      <p>Many versions listed here are <strong>deprecated, unsupported, or no longer available</strong> for download. Some versions may have known security vulnerabilities or compatibility issues.</p>
+      <p><strong>For currently supported versions and official downloads, please visit:</strong></p>
+      <p>
+        <a href="https://www.splunk.com/en_us/download/splunk-enterprise.html" target="_blank" rel="noopener noreferrer">Splunk Enterprise Downloads</a> | 
+        <a href="https://www.splunk.com/en_us/download/universal-forwarder.html" target="_blank" rel="noopener noreferrer">Universal Forwarder Downloads</a>
+      </p>
+    </div>
+
+    <p><strong>Use at Your Own Risk:</strong> This tool generates download URLs based on historical version data. URLs may be broken, files may be unavailable, or downloads may contain outdated software with security vulnerabilities. Always verify downloads and check Splunk's official documentation for support status.</p>
+
+    <p><strong>No Warranty:</strong> This tool is provided "as is" without warranty of any kind, express or implied. The creators assume no liability for any damages or issues arising from the use of this tool or downloaded software.</p>
+
+    <p><strong>Trademark Notice:</strong> Splunk, Splunk&gt;, and other Splunk marks are trademarks or registered trademarks of Splunk Inc. in the United States and other countries.</p>
+
+    <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+
+    <p style="text-align: center;">
+      <small>
+        For official support, documentation, and licensing information, visit 
+        <a href="https://www.splunk.com" target="_blank" rel="noopener noreferrer">splunk.com</a>
+      </small>
+    </p>
+  </footer>
+</div>
 
 <script src="script.js"></script>
 </body>

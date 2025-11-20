@@ -9,19 +9,19 @@ get_file_pattern() {
     local major=$(echo $version | cut -d. -f1)
     local minor=$(echo $version | cut -d. -f2)
     local patch=$(echo $version | cut -d. -f3)
+    if [ -z "$patch" ]; then
+        patch="0"
+    fi
     
     # Determine naming pattern based on version
+    # NOTE: The pattern changed at 9.4.0 (not based on version logic,  but on release date)
+    # 9.4.0+ uses lowercase: linux-amd64
+    # Pre-9.4.0 uses capitalized: Linux-x86_64
     if [ "$major" -ge "10" ] || ([ "$major" -eq "9" ] && [ "$minor" -ge "4" ]); then
-        # 10+ and 9.4+ uses linux-amd64 pattern
-        echo "linux-amd64"
-    elif [ "$major" -eq "9" ] && [ "$minor" -eq "3" ] && [ "$patch" -eq "2" ]; then
-        # 9.3.2 uses linux-2.6-amd64 pattern for .deb files
-        echo "linux-2.6-amd64"
-    elif [ "$major" -eq "9" ] && [ "$minor" -ge "3" ]; then
-        # 9.3+ uses linux-amd64 pattern
+        # 10.x and 9.4+ use linux-amd64 pattern
         echo "linux-amd64"
     else
-        # Default pattern for older versions
+        # Older versions use Linux-x86_64 pattern (capital L)
         echo "Linux-x86_64"
     fi
 }
@@ -41,7 +41,11 @@ supports_deb() {
     fi
 }
 
-version_list=$(curl -s https://raw.githubusercontent.com/ryanadler/downloadSplunk/main/version.list | grep -v version | grep -v missing | grep -vE "^#")
+if [ -f "version.list" ]; then
+    version_list=$(cat version.list | grep -v version | grep -v missing | grep -vE "^#")
+else
+    version_list=$(curl -s https://raw.githubusercontent.com/ryanadler/downloadSplunk/main/version.list | grep -v version | grep -v missing | grep -vE "^#")
+fi
 wget -O splunkDownload.html 'https://www.splunk.com/en_us/download/splunk-enterprise.html' -q
 version=$(cat splunkDownload.html | grep -oE "data-link\=\"https://.*data-md5" | head -1 | grep -oE "splunk-.*\"" | sed "s/splunk-//g" | sed "s/-.*//g")
 build=$(cat splunkDownload.html | grep -oE "data-link\=\"https://.*data-md5" | head -1 | grep -oE "splunk-.*\"" | grep -oE "[[:digit:]]-\w+-" | sed 's/^[[:digit:]]-//g' | sed 's/-//g')
@@ -114,7 +118,7 @@ if [ $grabLatest = "y" ]; then
 elif [ $grabLatest = "n" ]; then
         echo "Which version would you like? Example: (8.1.8 or 7.2.10.1)"
         read req_version
-	choice=$(echo $version_list | sed 's/ /\n/g' | grep -F "$req_version")
+	choice=$(echo "$version_list" | grep -E "^$req_version," | head -n 1)
 
 	if [ -z "$choice" ]; then
 	echo
