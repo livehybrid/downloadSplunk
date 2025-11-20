@@ -1,0 +1,32 @@
+name: Update version list
+
+on:
+  schedule:
+    - cron: '0 */12 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+      - name: Set up git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+      - name: Run update script
+        run: |
+          chmod +x update.sh
+          ./update.sh
+      - name: Commit changes
+        run: |
+          if [[ -n $(git status --porcelain) ]]; then
+            git add version.list
+            git commit -m "chore: update version list [automated]"
+            git push origin HEAD:main
+          else
+            echo "No changes to commit"
+          fi
