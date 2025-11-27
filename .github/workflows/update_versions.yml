@@ -8,25 +8,85 @@ on:
 jobs:
   update:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          persist-credentials: false
-      - name: Set up git
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      
+      - name: Checkout remote-main branch
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git fetch origin remote-main
+          git checkout remote-main
+      
+      - name: Configure Git
+        run: |
+          git config --local user.email "github-actions@github.com"
+          git config --local user.name "GitHub Action"
+      
       - name: Run update script
+        id: update
         run: |
           chmod +x update.sh
           ./update.sh
-      - name: Commit changes
+      
+      - name: Check for changes
+        id: check_changes
         run: |
-          if [[ -n $(git status --porcelain) ]]; then
-            git add version.list
-            git commit -m "chore: update version list [automated]"
-            git push origin HEAD:main
+          changed_files=$(git status --porcelain | grep 'version.list' || true)
+          if [ -n "$changed_files" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected in version.list"
+            echo "$changed_files"
+            
+            # Extract version info for PR title (optional - adjust as needed)
+            latest_version=$(head -n 1 version.list || echo "unknown")
+            echo "latest_version=$latest_version" >> $GITHUB_OUTPUT
           else
-            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes detected in version.list"
           fi
+      
+      - name: Create Pull Request to main
+        if: steps.check_changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update version list [automated]"
+          base: main
+          branch: auto-update-versions-${{ github.run_number }}
+          branch-suffix: timestamp
+          title: "Update Splunk version list"
+          body: |
+            This PR was automatically created to update the Splunk version list.
+            
+            **Latest Version:** ${{ steps.check_changes.outputs.latest_version }}
+            
+            Please review the changes and merge if appropriate.
+          delete-branch: true
+      
+      # Uncomment the following step to create a PR to the upstream parent repo
+      # - name: Create Pull Request to upstream parent
+      #   if: steps.check_changes.outputs.has_changes == 'true'
+      #   uses: peter-evans/create-pull-request@v7
+      #   with:
+      #     token: ${{ secrets.PAT_TOKEN }}  # You'll need to create a PAT with repo access
+      #     commit-message: "chore: update version list [automated]"
+      #     base: main  # or master - adjust to match upstream default branch
+      #     branch: auto-update-versions-${{ github.run_number }}
+      #     branch-suffix: timestamp
+      #     title: "Update Splunk version list"
+      #     body: |
+      #       This PR was automatically created to update the Splunk version list.
+      #       
+      #       **Latest Version:** ${{ steps.check_changes.outputs.latest_version }}
+      #       
+      #       Please review the changes and merge if appropriate.
+      #     delete-branch: true
+      #     # You may need to configure the push-to-fork option:
+      #     # push-to-fork: upstream-owner/upstream-repo
