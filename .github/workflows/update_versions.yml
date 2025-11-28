@@ -44,8 +44,22 @@ jobs:
             echo "Changes detected in version.list"
             echo "$changed_files"
             
-            # Extract version info for PR title (optional - adjust as needed)
-            latest_version=$(head -n 1 version.list || echo "unknown")
+            # Capture old version list
+            git show HEAD:version.list > old_version.list || true
+            
+            # Find new versions that were added
+            new_versions=$(comm -13 <(grep -v "^version,build" old_version.list | cut -d, -f1 | sort) <(grep -v "^version,build" version.list | cut -d, -f1 | sort) | tr '\n' ', ' | sed 's/,$//')
+            
+            if [ -n "$new_versions" ]; then
+              echo "new_versions=$new_versions" >> $GITHUB_OUTPUT
+              echo "New versions found: $new_versions"
+            else
+              echo "new_versions=none" >> $GITHUB_OUTPUT
+              echo "No new versions, possibly reordered"
+            fi
+            
+            # Extract latest version for reference
+            latest_version=$(tail -n 1 version.list | cut -d, -f1)
             echo "latest_version=$latest_version" >> $GITHUB_OUTPUT
           else
             echo "has_changes=false" >> $GITHUB_OUTPUT
@@ -61,10 +75,11 @@ jobs:
           base: remote-main
           branch: auto-update-versions-${{ github.run_number }}
           branch-suffix: timestamp
-          title: "Update Splunk version list"
+          title: "Update Splunk version list - New: ${{ steps.check_changes.outputs.new_versions }}"
           body: |
             This PR was automatically created to update the Splunk version list.
             
+            **New Versions Added:** ${{ steps.check_changes.outputs.new_versions }}
             **Latest Version:** ${{ steps.check_changes.outputs.latest_version }}
             
             Please review the changes and merge if appropriate.

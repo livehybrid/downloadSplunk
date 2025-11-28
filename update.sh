@@ -21,7 +21,7 @@ cat olderVersions.list \
   | sed 's/-/,/g' >> version.list
 
 echo "version,build" > new.list
-(cat version.list | grep -v "version\,build"; echo "$version,$build") | sort -u >> new.list
+(cat version.list | grep -v "version\,build"; echo "$version,$build") | sort -t, -k1,1V -u >> new.list
 
 echo
 echo "Cleaning Up"
