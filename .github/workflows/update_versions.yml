@@ -24,6 +24,11 @@ jobs:
           git fetch origin remote-main
           git checkout remote-main
       
+      - name: Get update.sh from main branch
+        run: |
+          # Use the update.sh from main branch which has the correct sorting
+          git checkout origin/main -- update.sh
+      
       - name: Configure Git
         run: |
           git config --local user.email "github-actions@github.com"
