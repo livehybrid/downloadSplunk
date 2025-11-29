@@ -82,6 +82,7 @@ jobs:
 
       - name: Create Pull Request to remote-main
         if: steps.check_changes.outputs.has_changes == 'true'
+        id: create_pr
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -96,8 +97,23 @@ jobs:
             **New Versions Added:** ${{ steps.check_changes.outputs.new_versions }}
             **Latest Version:** ${{ steps.check_changes.outputs.latest_version }}
             
-            Please review the changes and merge if appropriate.
+            This PR will be automatically merged.
           delete-branch: true
+      
+      - name: Auto-merge Pull Request
+        if: steps.check_changes.outputs.has_changes == 'true' && steps.create_pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Wait a moment for the PR to be fully created
+          sleep 5
+          
+          # Merge the PR using GitHub CLI
+          gh pr merge ${{ steps.create_pr.outputs.pull-request-number }} \
+            --squash \
+            --auto \
+            --delete-branch \
+            --subject "chore: update version list [automated]"
       
       # Uncomment the following step to create a PR to the upstream parent repo
       # - name: Create Pull Request to upstream parent
