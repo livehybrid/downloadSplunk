@@ -115,23 +115,22 @@ jobs:
             --delete-branch \
             --subject "chore: update version list [automated]"
       
-      # Uncomment the following step to create a PR to the upstream parent repo
-      # - name: Create Pull Request to upstream parent
-      #   if: steps.check_changes.outputs.has_changes == 'true'
-      #   uses: peter-evans/create-pull-request@v7
-      #   with:
-      #     token: ${{ secrets.PAT_TOKEN }}  # You'll need to create a PAT with repo access
-      #     commit-message: "chore: update version list [automated]"
-      #     base: main  # or master - adjust to match upstream default branch
-      #     branch: auto-update-versions-${{ github.run_number }}
-      #     branch-suffix: timestamp
-      #     title: "Update Splunk version list"
-      #     body: |
-      #       This PR was automatically created to update the Splunk version list.
-      #       
-      #       **Latest Version:** ${{ steps.check_changes.outputs.latest_version }}
-      #       
-      #       Please review the changes and merge if appropriate.
-      #     delete-branch: true
-      #     # You may need to configure the push-to-fork option:
-      #     # push-to-fork: upstream-owner/upstream-repo
+      - name: Create Pull Request to upstream parent repo
+        if: steps.check_changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create a PR to the parent repo (ryanadler/downloadSplunk)
+          # This merges our remote-main into their main branch
+          gh pr create \
+            --repo ryanadler/downloadSplunk \
+            --base main \
+            --head livehybrid:remote-main \
+            --title "Update Splunk version list - New: ${{ steps.check_changes.outputs.new_versions }}" \
+            --body "This PR was automatically created to update the Splunk version list.
+            
+            **New Versions Added:** ${{ steps.check_changes.outputs.new_versions }}
+            **Latest Version:** ${{ steps.check_changes.outputs.latest_version }}
+            
+            Please review the changes and merge if appropriate." || true
+
