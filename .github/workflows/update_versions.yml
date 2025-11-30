@@ -1,0 +1,137 @@
+name: Update version list
+
+on:
+  schedule:
+    - cron: '0 */12 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      
+      - name: Checkout remote-main branch
+        run: |
+          git fetch origin remote-main
+          git checkout remote-main
+      
+      - name: Get update.sh from main branch
+        run: |
+          # Use the update.sh from main branch which has the correct sorting
+          git checkout origin/main -- update.sh
+      
+      - name: Configure Git
+        run: |
+          git config --local user.email "github-actions@github.com"
+          git config --local user.name "GitHub Action"
+      
+      - name: Run update script
+        id: update
+        run: |
+          chmod +x update.sh
+          ./update.sh
+      
+      - name: Check for changes
+        id: check_changes
+        run: |
+          changed_files=$(git status --porcelain | grep 'version.list' || true)
+          if [ -n "$changed_files" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected in version.list"
+            echo "$changed_files"
+            
+            # Capture old version list
+            git show HEAD:version.list > old_version.list || true
+            
+            # Find new versions that were added
+            new_versions=$(comm -13 <(grep -v "^version,build" old_version.list | cut -d, -f1 | sort) <(grep -v "^version,build" version.list | cut -d, -f1 | sort) | tr '\n' ', ' | sed 's/,$//')
+            
+            if [ -n "$new_versions" ]; then
+              echo "new_versions=$new_versions" >> $GITHUB_OUTPUT
+              echo "New versions found: $new_versions"
+            else
+              echo "new_versions=none" >> $GITHUB_OUTPUT
+              echo "No new versions, possibly reordered"
+            fi
+            
+            # Extract latest version for reference
+            latest_version=$(tail -n 1 version.list | cut -d, -f1)
+            echo "latest_version=$latest_version" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes detected in version.list"
+          fi
+      
+      - name: Cleanup temporary files
+        run: |
+          rm -f old_version.list
+      
+      - name: Restore update.sh from remote-main branch
+        run: |
+          # Use the update.sh from remote-main branch as it was originally
+          git checkout origin/remote-main -- update.sh
+
+      - name: Create Pull Request to remote-main
+        if: steps.check_changes.outputs.has_changes == 'true'
+        id: create_pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update version list [automated]"
+          base: remote-main
+          branch: auto-update-versions-${{ github.run_number }}
+          branch-suffix: timestamp
+          title: "Update Splunk version list - New: ${{ steps.check_changes.outputs.new_versions }}"
+          body: |
+            This PR was automatically created to update the Splunk version list.
+            
+            **New Versions Added:** ${{ steps.check_changes.outputs.new_versions }}
+            **Latest Version:** ${{ steps.check_changes.outputs.latest_version }}
+            
+            This PR will be automatically merged.
+          delete-branch: true
+      
+      - name: Auto-merge Pull Request
+        if: steps.check_changes.outputs.has_changes == 'true' && steps.create_pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Wait a moment for the PR to be fully created
+          sleep 5
+          
+          # Merge the PR using GitHub CLI
+          gh pr merge ${{ steps.create_pr.outputs.pull-request-number }} \
+            --squash \
+            --auto \
+            --delete-branch \
+            --subject "chore: update version list [automated]"
+      
+      - name: Create Pull Request to upstream parent repo
+        if: steps.check_changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          # Create a PR to the parent repo (ryanadler/downloadSplunk)
+          # This merges our remote-main into their main branch
+          gh pr create \
+            --repo ryanadler/downloadSplunk \
+            --base main \
+            --head livehybrid:remote-main \
+            --title "Update Splunk version list - New: ${{ steps.check_changes.outputs.new_versions }}" \
+            --body "This PR was automatically created to update the Splunk version list.
+            
+            **New Versions Added:** ${{ steps.check_changes.outputs.new_versions }}
+            **Latest Version:** ${{ steps.check_changes.outputs.latest_version }}
+            
+            Please review the changes and merge if appropriate." || echo "⚠️ Failed to create PR to upstream (this is expected if PAT_TOKEN is not configured)"
+
+

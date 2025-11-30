@@ -1,0 +1,60 @@
+name: Sync remote-main to main
+
+on:
+  workflow_run:
+    workflows: ["Update version list"]
+    types:
+      - completed
+    branches:
+      - remote-main
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      
+      - name: Configure Git
+        run: |
+          git config --local user.email "github-actions@github.com"
+          git config --local user.name "GitHub Action"
+      
+      - name: Check workflow run status
+        if: github.event.workflow_run.conclusion != 'success' && github.event_name == 'workflow_run'
+        run: |
+          echo "⚠️  Previous workflow did not complete successfully"
+          echo "Conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Skipping sync to main"
+          exit 1
+      
+      - name: Sync remote-main to main
+        run: |
+          # Fetch the latest changes
+          git fetch origin remote-main main
+          
+          # Checkout main branch
+          git checkout main
+          
+          # Check if main can be fast-forwarded to remote-main
+          if git merge-base --is-ancestor main remote-main; then
+            # Fast-forward main to match remote-main
+            git merge --ff-only origin/remote-main
+            
+            # Push the updated main branch
+            git push origin main
+            
+            echo "✅ Successfully synced main with remote-main (fast-forward)"
+          else
+            echo "⚠️  Warning: main has diverged from remote-main"
+            echo "This should not happen if remote-main is the source of truth"
+            echo "Manual intervention may be required"
+            exit 1
+          fi

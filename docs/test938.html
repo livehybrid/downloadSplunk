@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Test 9.3.8 Issue</title>
+</head>
+<body>
+<h1>Testing 9.3.8</h1>
+<div id="output"></div>
+
+<script>
+function getFilePattern(version) {
+  const parts = version.split('.');
+  const major = parseInt(parts[0]) || 0;
+  const minor = parseInt(parts[1]) || 0;
+  
+  // Pattern changed at 9.4.0
+  if (major >= 10 || (major === 9 && minor >= 4)) {
+    return 'linux-amd64';
+  } else {
+    return 'Linux-x86_64';
+  }
+}
+
+function buildUrl(product, os, pkg, version, build) {
+  const base = `https://download.splunk.com/products/${product}/releases/${version}`;
+  const name = product === 'splunk' ? 'splunk' : 'splunkforwarder';
+  const pattern = getFilePattern(version);
+  
+  if (os === 'linux') {
+    if (pkg === 'tgz') return `${base}/linux/${name}-${version}-${build}-${pattern}.tgz`;
+    if (pkg === 'deb') return `${base}/linux/${name}-${version}-${build}-${pattern}.deb`;
+    if (pkg === 'rpm') return `${base}/linux/${name}-${version}-${build}.x86_64.rpm`;
+  }
+  if (os === 'windows') {
+    if (pkg === 'msi') return `${base}/windows/${name}-${version}-${build}-x64-release.msi`;
+    if (pkg === 'zip') return `${base}/windows/${name}-${version}-${build}-windows-64.zip`;
+  }
+  if (os === 'osx') {
+    if (pkg === 'tgz') return `${base}/osx/${name}-${version}-${build}-darwin-64.tgz`;
+    if (pkg === 'dmg') return `${base}/osx/${name}-${version}-${build}-macosx-10.11-intel.dmg`;
+  }
+  return '';
+}
+
+// Test with 9.3.8
+const version = '9.3.8';
+const build = 'fbf0510dff69';
+const pattern = getFilePattern(version);
+const url = buildUrl('universalforwarder', 'linux', 'tgz', version, build);
+
+const output = document.getElementById('output');
+output.innerHTML = `
+  <p><strong>Version:</strong> ${version}</p>
+  <p><strong>Build:</strong> ${build}</p>
+  <p><strong>Pattern:</strong> ${pattern}</p>
+  <p><strong>URL:</strong> ${url}</p>
+  <p><strong>URL is empty?:</strong> ${!url}</p>
+  <p><strong>URL is truthy?:</strong> ${!!url}</p>
+`;
+</script>
+</body>
+</html>
