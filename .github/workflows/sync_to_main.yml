@@ -43,18 +43,25 @@ jobs:
           # Checkout main branch
           git checkout main
           
-          # Check if main can be fast-forwarded to remote-main
-          if git merge-base --is-ancestor main remote-main; then
-            # Fast-forward main to match remote-main
-            git merge --ff-only origin/remote-main
-            
+          # Merge remote-main into main (allows divergence)
+          # Main can have fork-specific changes while receiving updates from remote-main
+          if git merge origin/remote-main --no-edit -m "chore: sync updates from remote-main [automated]"; then
             # Push the updated main branch
             git push origin main
             
-            echo "✅ Successfully synced main with remote-main (fast-forward)"
+            echo "✅ Successfully merged remote-main into main"
           else
-            echo "⚠️  Warning: main has diverged from remote-main"
-            echo "This should not happen if remote-main is the source of truth"
-            echo "Manual intervention may be required"
+            echo "❌ Merge conflict detected!"
+            echo "Main has changes that conflict with remote-main"
+            echo "This requires manual resolution"
+            
+            # Abort the merge
+            git merge --abort
+            
+            # Show what files conflict
+            echo ""
+            echo "Files that would conflict:"
+            git diff --name-only main origin/remote-main
+            
             exit 1
           fi
