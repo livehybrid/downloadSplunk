@@ -115,23 +115,5 @@ jobs:
             --delete-branch \
             --subject "chore: update version list [automated]"
       
-      - name: Create Pull Request to upstream parent repo
-        if: steps.check_changes.outputs.has_changes == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
-        run: |
-          # Create a PR to the parent repo (ryanadler/downloadSplunk)
-          # This merges our remote-main into their main branch
-          gh pr create \
-            --repo ryanadler/downloadSplunk \
-            --base main \
-            --head livehybrid:remote-main \
-            --title "Update Splunk version list - New: ${{ steps.check_changes.outputs.new_versions }}" \
-            --body "This PR was automatically created to update the Splunk version list.
-            
-            **New Versions Added:** ${{ steps.check_changes.outputs.new_versions }}
-            **Latest Version:** ${{ steps.check_changes.outputs.latest_version }}
-            
-            Please review the changes and merge if appropriate." || echo "⚠️ Failed to create PR to upstream (this is expected if PAT_TOKEN is not configured)"
 
 
