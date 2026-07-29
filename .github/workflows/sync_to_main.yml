@@ -6,7 +6,7 @@ on:
     types:
       - completed
     branches:
-      - remote-main
+      - main
   workflow_dispatch:
 
 jobs:
