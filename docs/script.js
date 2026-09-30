@@ -208,13 +208,15 @@ function renderSummary(entry) {
 
   const notice = document.getElementById('notice');
   const latest = state.data[state.product][0].version;
-  const major = parseInt(entry.version, 10);
-  if (major < 9) {
-    notice.textContent = `Splunk ${entry.version} is long past end of support and has known security vulnerabilities. Use it only as a stepping stone for upgrades. The latest release is ${latest}.`;
-    notice.style.display = 'block';
-  } else {
-    notice.style.display = 'none';
+  const messages = [];
+  if (state.fallbackFrom) {
+    messages.push(`${PRODUCTS[state.product]} ${state.fallbackFrom} is not available, so the nearest earlier release is shown.`);
   }
+  if (parseInt(entry.version, 10) < 9) {
+    messages.push(`Splunk ${entry.version} is long past end of support and has known security vulnerabilities. Use it only as a stepping stone for upgrades. The latest release is ${latest}.`);
+  }
+  notice.textContent = messages.join(' ');
+  notice.style.display = messages.length ? 'block' : 'none';
 }
 
 function renderResults(entry) {
@@ -269,14 +271,20 @@ function render() {
   updateUrl();
 }
 
-// Pick an exact version if available, otherwise the newest one starting with the given prefix (e.g. "9.4")
+// Pick an exact version if available, otherwise the newest one starting with the given
+// prefix (e.g. "9.4"), otherwise the nearest earlier version (with a notice saying so)
 function resolveVersion(product, wanted) {
   const list = state.data[product] || [];
-  if (!wanted) return list[0] && list[0].version;
+  state.fallbackFrom = null;
+  if (!wanted || !list.length) return list[0] && list[0].version;
   const exact = list.find(e => e.version === wanted);
   if (exact) return exact.version;
   const prefixed = list.find(e => e.version.startsWith(wanted.replace(/\.?$/, '.')));
-  return (prefixed || list[0]).version;
+  if (prefixed) return prefixed.version;
+  if (!/^\d+(\.\d+)*$/.test(wanted)) return list[0].version;
+  state.fallbackFrom = wanted;
+  const earlier = list.find(e => compareVersions(e.version, wanted) < 0);
+  return (earlier || list[list.length - 1]).version;
 }
 
 async function init() {
@@ -310,6 +318,7 @@ async function init() {
   });
   document.getElementById('version').addEventListener('change', e => {
     state.version = e.target.value;
+    state.fallbackFrom = null;
     render();
   });
 
