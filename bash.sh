@@ -41,6 +41,126 @@ supports_deb() {
     fi
 }
 
+
+# Returns success if version $1 is lower than version $2 (dotted numeric compare)
+ver_lt() {
+    local IFS=.
+    local -a a=($1) b=($2)
+    local i x y
+    for ((i = 0; i < 4; i++)); do
+        x=${a[i]:-0}; y=${b[i]:-0}
+        ((10#$x < 10#$y)) && return 0
+        ((10#$x > 10#$y)) && return 1
+    done
+    return 1
+}
+
+ver_ge() { ! ver_lt "$1" "$2"; }
+
+# Returns success if $1 >= $2 and $1 < $3
+ver_in() { ver_ge "$1" "$2" && ver_lt "$1" "$3"; }
+
+# Splunk Enterprise filename suffix (after "splunk-<version>-<build>") for an OS/package.
+# Rules verified against download.splunk.com. Prints nothing when no such package exists.
+enterprise_suffix() {
+    local os=$1 pkg=$2 v=$3
+
+    # Hotfix releases that were only published for Linux
+    case "$v" in
+        8.1.3.2|8.1.4.3|8.1.5.2|8.1.5.3|8.2.2.2|8.2.4.1|8.2.4.2|8.2.4.3)
+            [ "$os" != "linux" ] && return ;;
+    esac
+
+    case "$os-$pkg" in
+        linux-tgz)
+            if ver_ge "$v" 9.4; then echo "-linux-amd64.tgz"; else echo "-Linux-x86_64.tgz"; fi ;;
+        linux-deb)
+            [ "$v" = "7.0.10" ] && return
+            if ver_ge "$v" 9.4; then echo "-linux-amd64.deb"; else echo "-linux-2.6-amd64.deb"; fi ;;
+        linux-rpm)
+            if ver_ge "$v" 9.0.5 || ver_in "$v" 8.2.11 9.0 || ver_in "$v" 8.1.14 8.2; then
+                echo ".x86_64.rpm"
+            else
+                echo "-linux-2.6-x86_64.rpm"
+            fi ;;
+        windows-msi)
+            if ver_ge "$v" 9.4; then echo "-windows-x64.msi"; else echo "-x64-release.msi"; fi ;;
+        windows-zip)
+            if ver_lt "$v" 8.1.13 || ver_in "$v" 8.2 8.2.10 || ver_in "$v" 9.0 9.0.2; then
+                echo "-windows-64.zip"
+            fi ;;
+        osx-tgz)
+            if ver_ge "$v" 10.4; then echo "-darwin-arm64.tgz"
+            elif ver_ge "$v" 9.3; then echo "-darwin-intel.tgz"
+            else echo "-darwin-64.tgz"; fi ;;
+        osx-dmg)
+            [ "$v" = "8.1.0" ] && return
+            if ver_ge "$v" 10.4; then echo "-darwin-arm64.dmg"
+            elif ver_ge "$v" 9.3; then echo "-darwin-intel.dmg"
+            elif ver_ge "$v" 7.1; then echo "-macosx-10.11-intel.dmg"
+            else echo "-macosx-10.9-intel.dmg"; fi ;;
+    esac
+}
+
+# Prints the wget statement for a Splunk Enterprise package, if it exists for this version
+enterprise_wget() {
+    local os=$1 pkg=$2 suffix
+    suffix=$(enterprise_suffix "$os" "$pkg" "$version")
+    [ -z "$suffix" ] && return
+    local file="splunk-$version-$build$suffix"
+    echo "wget -O $file 'https://download.splunk.com/products/splunk/releases/$version/$os/$file'"
+}
+
+print_statements() {
+	file_pattern=$(get_file_pattern $version $build)
+	supports_deb_pkg=$(supports_deb $version)
+
+	echo
+	echo "Displaying WGET Statements for Splunk:
+	Version: $version
+	Build: $build"
+
+	echo
+	echo "-------- Linux --------"
+	echo
+	echo "-- Tarball (TGZ)"
+	enterprise_wget linux tgz
+	echo "wget -O splunkforwarder-$version-$build-$file_pattern.tgz 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build-$file_pattern.tgz'"
+	echo
+	echo "-- Debian (DEB)"
+	enterprise_wget linux deb
+	if [ "$supports_deb_pkg" = "true" ]; then
+		echo "wget -O splunkforwarder-$version-$build-$file_pattern.deb 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build-$file_pattern.deb'"
+	fi
+	echo
+	echo "-- RHEL (RPM)"
+	enterprise_wget linux rpm
+	echo "wget -O splunkforwarder-$version-$build.x86_64.rpm 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build.x86_64.rpm'"
+	echo
+	echo
+	echo "-------- Windows --------"
+	echo
+	echo "-- Binary (MSI)"
+	enterprise_wget windows msi
+	echo "wget -O splunkforwarder-$version-$build-x64-release.msi 'https://download.splunk.com/products/universalforwarder/releases/$version/windows/splunkforwarder-$version-$build-x64-release.msi'"
+	echo
+	echo "-- ZIP"
+	enterprise_wget windows zip
+	echo "wget -O splunkforwarder-$version-$build-windows-64.zip 'https://download.splunk.com/products/universalforwarder/releases/$version/windows/splunkforwarder-$version-$build-windows-64.zip'"
+	echo
+	echo
+	echo "-------- Mac --------"
+	echo
+	echo "-- Tarball (TGZ)"
+	enterprise_wget osx tgz
+	echo "wget -O splunkforwarder-$version-$build-darwin-64.tgz 'https://download.splunk.com/products/universalforwarder/releases/$version/osx/splunkforwarder-$version-$build-darwin-64.tgz'"
+	echo
+	echo "-- Disk Image (DMG)"
+	enterprise_wget osx dmg
+	echo "wget -O splunkforwarder-$version-$build-macosx-10.11-intel.dmg 'https://download.splunk.com/products/universalforwarder/releases/$version/osx/splunkforwarder-$version-$build-macosx-10.11-intel.dmg'"
+	echo
+	echo
+}
 if [ -f "version.list" ]; then
     version_list=$(cat version.list | grep -v version | grep -v missing | grep -vE "^#")
 else
@@ -67,53 +187,9 @@ if [ -z "$grabLatest" ]; then
         grabLatest="y"
 fi
 
-if [ $grabLatest = "y" ]; then
-        # Get file naming pattern for this version
-        file_pattern=$(get_file_pattern $version $build)
-        supports_deb_pkg=$(supports_deb $version)
-        
-        echo
-        echo "Displaying WGET Statements for Splunk:
-        Version: $version
-        Build: $build"
 
-        echo
-        echo "-------- Linux --------"
-        echo
-	echo "-- Tarball (TGZ)"
-        echo "wget -O splunk-$version-$build-$file_pattern.tgz 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build-$file_pattern.tgz'"
-        echo "wget -O splunkforwarder-$version-$build-$file_pattern.tgz 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build-$file_pattern.tgz'"
-	echo 
-	if [ "$supports_deb_pkg" = "true" ]; then
-		echo "-- Debian (DEB)"
-		echo "wget -O splunk-$version-$build-$file_pattern.deb 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build-$file_pattern.deb'"
-		echo "wget -O splunkforwarder-$version-$build-$file_pattern.deb 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build-$file_pattern.deb'"
-		echo
-	fi
-	echo "-- RHEL (RPM)"
-        echo "wget -O splunk-$version-$build.x86_64.rpm 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build.x86_64.rpm'"
-        echo "wget -O splunkforwarder-$version-$build.x86_64.rpm 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build.x86_64.rpm'"
-        echo
-	echo 
-        echo "-------- Windows --------"
-        echo
-	echo "-- Binary (MSI)"
-        echo "wget -O splunk-$version-$build-x64-release.msi 'https://download.splunk.com/products/splunk/releases/$version/windows/splunk-$version-$build-x64-release.msi'"
-        echo "wget -O splunkforwarder-$version-$build-x64-release.msi 'https://download.splunk.com/products/universalforwarder/releases/$version/windows/splunkforwarder-$version-$build-x64-release.msi'"
-	echo 
-	echo
-	echo "-------- Mac --------"
-	echo
-	echo "-- Tarball (TGZ)"
-	echo "wget -O splunk-$version-$build-darwin-64.tgz 'https://download.splunk.com/products/splunk/releases/$version/osx/splunk-$version-$build-darwin-64.tgz'"
-	echo "wget -O splunkforwarder-$version-$build-darwin-64.tgz 'https://download.splunk.com/products/universalforwarder/releases/$version/osx/splunkforwarder-$version-$build-darwin-64.tgz'"
-	echo
-	echo "-- Intel 10.11 (DMG)"
-	echo "wget -O splunk-$version-$build-macosx-10.11-intel.dmg 'https://download.splunk.com/products/splunk/releases/$version/osx/splunk-$version-$build-macosx-10.11-intel.dmg'"
-	echo "wget -O splunkforwarder-$version-$build-macosx-10.11-intel.dmg 'https://download.splunk.com/products/universalforwarder/releases/$version/osx/splunkforwarder-$version-$build-macosx-10.11-intel.dmg'"
-	echo
-	echo
-	echo
+if [ $grabLatest = "y" ]; then
+	print_statements
 
 elif [ $grabLatest = "n" ]; then
         echo "Which version would you like? Example: (8.1.8 or 7.2.10.1)"
@@ -126,7 +202,7 @@ elif [ $grabLatest = "n" ]; then
 	exit 1
 	fi
 	
-	warn=$(echo $req_version | grep -oE "." | head -1)
+	warn=${req_version%%.*}
 	if [ "$warn" -lt "8" ]; then
 	clear
 	echo
@@ -145,56 +221,8 @@ elif [ $grabLatest = "n" ]; then
 
 	version=$(echo $choice | sed 's/,.*//g')
 	build=$(echo $choice | sed 's/.*,//g')
-	
-	# Get file naming pattern for this version
-	file_pattern=$(get_file_pattern $version $build)
-	supports_deb_pkg=$(supports_deb $version)
-	
-	echo
-	echo "Displaying WGET Statements for Splunk:
-	Version: $version
-	Build: $build"
-	
-	echo
-	echo "-------- Linux --------"
-	echo
-	echo "-- Tarball (TGZ)"
-	echo "wget -O splunk-$version-$build-$file_pattern.tgz 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build-$file_pattern.tgz'"
-	echo "wget -O splunkforwarder-$version-$build-$file_pattern.tgz 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build-$file_pattern.tgz'"
-	echo
-	if [ "$supports_deb_pkg" = "true" ]; then
-		echo "-- Debian (DEB)"
-		echo "wget -O splunk-$version-$build-$file_pattern.deb 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build-$file_pattern.deb'"
-		echo "wget -O splunkforwarder-$version-$build-$file_pattern.deb 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build-$file_pattern.deb'"
-		echo
-	fi
-	echo "-- RHEL (RPM)"
-	echo "wget -O splunk-$version-$build.x86_64.rpm 'https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$version-$build.x86_64.rpm'"
-	echo "wget -O splunkforwarder-$version-$build.x86_64.rpm 'https://download.splunk.com/products/universalforwarder/releases/$version/linux/splunkforwarder-$version-$build.x86_64.rpm'"
-	echo
-	echo
-	echo "-------- Windows --------"
-	echo
-	echo "-- Binary (MSI)"
-	echo "wget -O splunk-$version-$build-x64-release.msi 'https://download.splunk.com/products/splunk/releases/$version/windows/splunk-$version-$build-x64-release.msi'"
-	echo "wget -O splunkforwarder-$version-$build-x64-release.msi 'https://download.splunk.com/products/universalforwarder/releases/$version/windows/splunkforwarder-$version-$build-x64-release.msi'"
-	echo
-	echo "-- ZIP"
-	echo "wget -O splunk-$version-$build-windows-64.zip 'https://download.splunk.com/products/splunk/releases/$version/windows/splunk-$version-$build-windows-64.zip'"
-	echo "wget -O splunkforwarder-$version-$build-windows-64.zip 'https://download.splunk.com/products/universalforwarder/releases/$version/windows/splunkforwarder-$version-$build-windows-64.zip'"
-	echo
-	echo
-	echo "-------- Mac --------"
-	echo
-	echo "-- Tarball (TGZ)"
-	echo "wget -O splunk-$version-$build-darwin-64.tgz 'https://download.splunk.com/products/splunk/releases/$version/osx/splunk-$version-$build-darwin-64.tgz'"
-	echo "wget -O splunkforwarder-$version-$build-darwin-64.tgz 'https://download.splunk.com/products/universalforwarder/releases/$version/osx/splunkforwarder-$version-$build-darwin-64.tgz'"
-	echo
-	echo "-- Intel 10.11 (DMG)"
-	echo "wget -O splunk-$version-$build-macosx-10.11-intel.dmg 'https://download.splunk.com/products/splunk/releases/$version/osx/splunk-$version-$build-macosx-10.11-intel.dmg'"
-	echo "wget -O splunkforwarder-$version-$build-macosx-10.11-intel.dmg 'https://download.splunk.com/products/universalforwarder/releases/$version/osx/splunkforwarder-$version-$build-macosx-10.11-intel.dmg'"
-	echo
-	echo
+
+	print_statements
 
 fi
 echo

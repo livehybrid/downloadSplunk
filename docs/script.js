@@ -36,11 +36,72 @@ function getFilePattern(version) {
   }
 }
 
+// Compare dotted version strings numerically (e.g. 8.2.11 > 8.2.9, 9.0.4.1 > 9.0.4)
+function compareVersions(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+const atLeast = (v, min) => compareVersions(v, min) >= 0;
+const inRange = (v, min, max) => atLeast(v, min) && compareVersions(v, max) < 0;
+
+// Splunk Enterprise hotfix releases that were only published for Linux
+const ENTERPRISE_LINUX_ONLY = ['8.1.3.2', '8.1.4.3', '8.1.5.2', '8.1.5.3', '8.2.2.2', '8.2.4.1', '8.2.4.2', '8.2.4.3'];
+
+// Splunk Enterprise filename suffix (after "splunk-<version>-<build>") for each OS/package.
+// Rules verified against download.splunk.com. Returns '' when no such package exists.
+function enterpriseSuffix(os, pkg, v) {
+  if (os !== 'linux' && ENTERPRISE_LINUX_ONLY.includes(v)) return '';
+
+  if (os === 'linux') {
+    if (pkg === 'tgz') return atLeast(v, '9.4') ? '-linux-amd64.tgz' : '-Linux-x86_64.tgz';
+    if (pkg === 'deb') {
+      if (v === '7.0.10') return '';
+      return atLeast(v, '9.4') ? '-linux-amd64.deb' : '-linux-2.6-amd64.deb';
+    }
+    if (pkg === 'rpm') {
+      const plainRpm = atLeast(v, '9.0.5') || inRange(v, '8.2.11', '9.0') || inRange(v, '8.1.14', '8.2');
+      return plainRpm ? '.x86_64.rpm' : '-linux-2.6-x86_64.rpm';
+    }
+  }
+  if (os === 'windows') {
+    if (pkg === 'msi') return atLeast(v, '9.4') ? '-windows-x64.msi' : '-x64-release.msi';
+    if (pkg === 'zip') {
+      const hasZip = !atLeast(v, '8.1.13') || inRange(v, '8.2', '8.2.10') || inRange(v, '9.0', '9.0.2');
+      return hasZip ? '-windows-64.zip' : '';
+    }
+  }
+  if (os === 'osx') {
+    // 10.4+ is Apple Silicon only
+    if (pkg === 'tgz') {
+      if (atLeast(v, '10.4')) return '-darwin-arm64.tgz';
+      return atLeast(v, '9.3') ? '-darwin-intel.tgz' : '-darwin-64.tgz';
+    }
+    if (pkg === 'dmg') {
+      if (v === '8.1.0') return '';
+      if (atLeast(v, '10.4')) return '-darwin-arm64.dmg';
+      if (atLeast(v, '9.3')) return '-darwin-intel.dmg';
+      return atLeast(v, '7.1') ? '-macosx-10.11-intel.dmg' : '-macosx-10.9-intel.dmg';
+    }
+  }
+  return '';
+}
+
 function buildUrl(product, os, pkg, version, build) {
   const base = `https://download.splunk.com/products/${product}/releases/${version}`;
   const name = product === 'splunk' ? 'splunk' : 'splunkforwarder';
   const pattern = getFilePattern(version);
-  
+
+  if (product === 'splunk') {
+    const suffix = enterpriseSuffix(os, pkg, version);
+    return suffix ? `${base}/${os}/${name}-${version}-${build}${suffix}` : '';
+  }
+
   if (os === 'linux') {
     if (pkg === 'tgz') return `${base}/linux/${name}-${version}-${build}-${pattern}.tgz`;
     if (pkg === 'deb') return `${base}/linux/${name}-${version}-${build}-${pattern}.deb`;
@@ -137,6 +198,10 @@ async function search() {
       `;
       tbody.appendChild(tr);
     });
+
+    if (!tbody.children.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">This package type is not available for the matching versions</td></tr>';
+    }
   } catch (error) {
     console.error('Search error:', error);
     errorEl.textContent = 'Failed to load versions. Please try again.';
