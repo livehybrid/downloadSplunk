@@ -1,0 +1,52 @@
+name: Update download manifest
+
+on:
+  workflow_run:
+    workflows: ["Sync remote-main to main"]
+    types:
+      - completed
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+    inputs:
+      full:
+        description: 'Re-check every version (slow)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: update-downloads
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "github-actions@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Check download links
+        run: python3 scripts/update_downloads.py ${{ inputs.full && '--all' || '' }}
+
+      - name: Commit manifest
+        run: |
+          if git diff --quiet -- docs/downloads.tsv; then
+            echo "No changes to docs/downloads.tsv"
+            exit 0
+          fi
+          git add docs/downloads.tsv
+          git commit -m "chore: update download manifest [automated]"
+          git pull --rebase origin main
+          git push origin main
