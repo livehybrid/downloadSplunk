@@ -82,6 +82,10 @@ CANDIDATES = [
 ]
 
 
+VERSION_RE = re.compile(r'^[0-9]+(?:\.[0-9]+)+$')
+BUILD_RE = re.compile(r'^[0-9a-f]+$')
+
+
 def version_key(v):
     return tuple(int(x) for x in v.split('.'))
 
@@ -128,8 +132,11 @@ def read_versions():
             line = line.strip()
             if not line or line.startswith('#') or line.startswith('version,'):
                 continue
-            version, build = [p.strip() for p in line.split(',')[:2]]
-            versions.append((version, build))
+            parts = [p.strip() for p in line.split(',')]
+            if len(parts) < 2 or not VERSION_RE.match(parts[0]) or not BUILD_RE.match(parts[1]):
+                print(f'warning: skipping malformed version.list line: {line!r}', file=sys.stderr)
+                continue
+            versions.append((parts[0], parts[1]))
     return versions
 
 
